@@ -1,91 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Chinchón</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chinchón - Tiempo real</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 <body>
+  <div id="welcome" class="screen">
+    <h1>Crear partida</h1>
+    <div>
+      <input id="playerInput" placeholder="Nombre jugador" />
+      <button id="addPlayerBtn">Añadir</button>
+    </div>
+    <ul id="playerList"></ul>
+    <div>
+      <input id="codeInput" maxlength="6" placeholder="Código (opcional)" />
+      <input id="maxInput" type="number" value="101" />
+      <label><input id="useReenganches" type="checkbox" checked /> Reenganches</label>
+    </div>
+    <button id="startBtn">Comenzar partida</button>
+  </div>
 
+  <div id="game" class="screen hidden">
     <header>
-        <h1>Chinchón</h1>
+      <h1>Chinchón — <span id="roomCodeTitle"></span></h1>
+      <div class="room-actions">
+        <button id="openApuntar">Apuntar ronda</button>
+        <button id="shareBtn">Compartir</button>
+        <button id="editPlayersBtn">Editar jugadores</button>
+        <button id="progressBtn">Ver progreso</button>
+        <button id="rulesBtn">Reglas</button>
+      </div>
     </header>
 
     <main>
-        <div class="players">
-            <!-- 9 jugadores -->
-            <!-- Cada bloque imita nombreX, puntuacionX, editX, rX -->
-            <!-- Jugador 1 -->
-            <div class="player">
-                <input id="nombre1" class="nombre" placeholder="Nombre 1">
-                <span id="puntuacion1" class="puntuacion">0</span>
-                <input id="edit1" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r1" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre2" class="nombre" placeholder="Nombre 2">
-                <span id="puntuacion2" class="puntuacion">0</span>
-                <input id="edit2" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r2" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre3" class="nombre" placeholder="Nombre 3">
-                <span id="puntuacion3" class="puntuacion">0</span>
-                <input id="edit3" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r3" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre4" class="nombre" placeholder="Nombre 4">
-                <span id="puntuacion4" class="puntuacion">0</span>
-                <input id="edit4" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r4" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre5" class="nombre" placeholder="Nombre 5">
-                <span id="puntuacion5" class="puntuacion">0</span>
-                <input id="edit5" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r5" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre6" class="nombre" placeholder="Nombre 6">
-                <span id="puntuacion6" class="puntuacion">0</span>
-                <input id="edit6" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r6" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre7" class="nombre" placeholder="Nombre 7">
-                <span id="puntuacion7" class="puntuacion">0</span>
-                <input id="edit7" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r7" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre8" class="nombre" placeholder="Nombre 8">
-                <span id="puntuacion8" class="puntuacion">0</span>
-                <input id="edit8" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r8" class="rondas"></span>
-            </div>
-
-            <div class="player">
-                <input id="nombre9" class="nombre" placeholder="Nombre 9">
-                <span id="puntuacion9" class="puntuacion">0</span>
-                <input id="edit9" class="edit" type="number" placeholder="Puntos ronda">
-                <span id="r9" class="rondas"></span>
-            </div>
-        </div>
-
-        <div class="controls">
-            <button id="apuntar">Apuntar ronda</button>
-            <button id="menos10">-10</button>
-        </div>
+      <table id="scoreTable">
+        <thead><tr><th>Jugador</th><th>Puntos</th><th>Reenganches</th><th>Última</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </main>
+  </div>
 
-    <script src="app.js"></script>
+  <!-- Modal apuntar -->
+  <div id="apuntarModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Apuntar ronda</h2>
+      <form id="apuntarForm"><div id="apuntarList"></div>
+        <div><button id="minus10Key" type="button">-10</button>
+        <button id="apuntarSubmit" type="submit">Apuntar ronda</button>
+        <button id="apuntarCancel" type="button">Cancelar</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Compartir modal -->
+  <div id="shareModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Compartir</h2>
+      <button id="shareEdit">Modo edición</button>
+      <button id="shareView">Modo ver</button>
+      <div id="shareResult"></div>
+      <div id="qrContainer"></div>
+      <button id="closeShare">Cerrar</button>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
