@@ -212,18 +212,24 @@ shareView.onclick = () => {
 closeShare.onclick = () => shareModal.classList.add('hidden');
 
 /* Cargar desde URL al inicio */
-function loadFromUrl(){
+function loadFromUrl() {
   const params = new URLSearchParams(location.search);
   const room = params.get('room');
-  const mode = params.get('mode') || 'edit';
-  if(room){
-    state.roomCode = normalize(room);
-    state.mode = (mode === 'view') ? 'view' : 'edit';
-    subscribeRoom(state.roomCode);
-    showGame();
-  } else {
-    // mostrar bienvenida
+  const mode = params.get('mode');
+
+  // Si NO hay room → mostrar bienvenida SIEMPRE
+  if (!room) {
     welcome.classList.remove('hidden');
+    game.classList.add('hidden');
+    return;
   }
+
+  // Si hay room → cargar partida desde Supabase
+  state.roomCode = room.toLowerCase();
+  state.mode = (mode === 'view') ? 'view' : 'edit';
+
+  subscribeRoom(state.roomCode);
+  showGame();
 }
+
 loadFromUrl();
