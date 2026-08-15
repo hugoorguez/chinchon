@@ -3,24 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chinchón - Tiempo real</title>
+  <title>Chinchón</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 <body>
+
   <div id="welcome" class="screen">
     <h1>Crear partida</h1>
+
     <div>
       <input id="playerInput" placeholder="Nombre jugador" />
       <button id="addPlayerBtn">Añadir</button>
     </div>
+
     <ul id="playerList"></ul>
+
     <div>
       <input id="codeInput" maxlength="6" placeholder="Código (opcional)" />
       <input id="maxInput" type="number" value="101" />
       <label><input id="useReenganches" type="checkbox" checked /> Reenganches</label>
     </div>
+
     <button id="startBtn">Comenzar partida</button>
   </div>
 
@@ -38,7 +43,9 @@
 
     <main>
       <table id="scoreTable">
-        <thead><tr><th>Jugador</th><th>Puntos</th><th>Reenganches</th><th>Última</th></tr></thead>
+        <thead>
+          <tr><th>Jugador</th><th>Puntos</th><th>Reenganches</th><th>Última</th></tr>
+        </thead>
         <tbody></tbody>
       </table>
     </main>
@@ -48,15 +55,18 @@
   <div id="apuntarModal" class="modal hidden">
     <div class="modal-content">
       <h2>Apuntar ronda</h2>
-      <form id="apuntarForm"><div id="apuntarList"></div>
-        <div><button id="minus10Key" type="button">-10</button>
-        <button id="apuntarSubmit" type="submit">Apuntar ronda</button>
-        <button id="apuntarCancel" type="button">Cancelar</button></div>
+      <form id="apuntarForm">
+        <div id="apuntarList"></div>
+        <div>
+          <button id="minus10Key" type="button">-10</button>
+          <button id="apuntarSubmit" type="submit">Apuntar ronda</button>
+          <button id="apuntarCancel" type="button">Cancelar</button>
+        </div>
       </form>
     </div>
   </div>
 
-  <!-- Compartir modal -->
+  <!-- Modal compartir -->
   <div id="shareModal" class="modal hidden">
     <div class="modal-content">
       <h2>Compartir</h2>
