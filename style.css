@@ -4,5 +4,6 @@ body{font-family:Arial;margin:0;padding:20px;background:#fafafa}
 table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #eee}
 .modal{position:fixed;left:0;right:0;top:0;bottom:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
+.modal.hidden{display:none}
 .modal-content{background:#fff;padding:16px;border-radius:8px;width:90%;max-width:720px}
 .room-actions button{margin-right:8px}
