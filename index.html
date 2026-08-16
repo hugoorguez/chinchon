@@ -70,10 +70,12 @@
       </header>
 
       <main class="card-panel">
+        <p id="finishedBanner" class="finished-banner hidden"></p>
         <div class="table-scroll">
           <table id="scoreTable">
             <thead>
-              <tr></tr>
+              <tr id="scoreTableHeadRow1"></tr>
+              <tr id="scoreTableHeadRow2"></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -106,6 +108,7 @@
         <button id="shareEdit" class="btn btn-primary">Modo edición</button>
         <button id="shareView" class="btn btn-ghost">Modo ver</button>
       </div>
+      <p id="shareViewOnlyNote" class="hint-text hidden">Estás en modo solo ver: solo puedes compartir enlaces de modo ver.</p>
       <p id="shareResult" class="share-link"></p>
       <div id="qrContainer" class="qr-container"></div>
       <div class="modal-actions">
@@ -128,6 +131,7 @@
         </label>
         <button id="editPlayerAddBtn" type="button" class="btn btn-gold">Añadir</button>
       </div>
+      <p class="hint-text">Añadir jugador nuevo por defecto pone como puntos de salida la puntuación más alta de la partida.</p>
 
       <div class="modal-actions">
         <button id="editPlayersCancel" type="button" class="btn btn-ghost">Cancelar</button>
@@ -160,13 +164,31 @@
           <li><strong>Apuntar ronda:</strong> al terminar cada ronda, introduce los puntos que se lleva cada jugador (puedes usar negativos). Se suman a su total.</li>
           <li><strong>Botón -10:</strong> rellena automáticamente con -10 la primera casilla vacía, para apuntar rápido a quien cierra la ronda.</li>
           <li><strong>Puntos para perder:</strong> cuando un jugador alcanza o supera ese total, queda eliminado... salvo que la partida tenga reenganches activados.</li>
-          <li><strong>Reenganches:</strong> si están activados, el jugador no queda eliminado al superar el límite: simplemente suma un reenganche y sigue jugando.</li>
-          <li><strong>Historial:</strong> la tabla principal muestra la puntuación ronda a ronda de cada jugador, de la primera a la última.</li>
+          <li><strong>Reenganches:</strong> si están activados, al superar el límite el jugador no queda eliminado: suma un reenganche y su puntuación baja hasta igualar la del jugador que en ese momento tenga más puntos (sin haber llegado al límite).</li>
+          <li><strong>Fin de la partida:</strong> la partida termina en cuanto, tras apuntar una ronda, todos los jugadores que siguen en juego llegan al límite a la vez (ya no queda nadie por debajo al que "engancharse").</li>
+          <li><strong>Historial:</strong> la tabla principal muestra la puntuación ronda a ronda de cada jugador, de la más reciente a la primera.</li>
           <li><strong>Compartir:</strong> genera un enlace de edición (para apuntar puntos) o de solo ver (para seguir la partida sin poder tocar nada).</li>
         </ul>
       </div>
+
+      <div id="rulesSettings" class="panel-section hidden">
+        <h2>Ajustes de la partida</h2>
+        <div class="settings-grid">
+          <label class="field">
+            <span>Puntos para perder</span>
+            <input id="rulesMaxInput" type="number" />
+          </label>
+          <label class="field field-check">
+            <input id="rulesUseReenganches" type="checkbox" />
+            <span>Permitir reenganches</span>
+          </label>
+        </div>
+        <p class="hint-text">Cambiar estos ajustes recalcula automáticamente todo el historial de la partida con las nuevas reglas.</p>
+      </div>
+
       <div class="modal-actions">
         <button id="rulesClose" type="button" class="btn btn-ghost">Cerrar</button>
+        <button id="rulesSave" type="button" class="btn btn-primary hidden">Guardar ajustes</button>
       </div>
     </div>
   </div>

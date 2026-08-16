@@ -330,6 +330,49 @@ tbody tr:nth-child(even) td:first-child{background:#f5f1e2}
 .rules-body{color:var(--ink);line-height:1.55}
 .rules-body ul{padding-left:20px;display:flex;flex-direction:column;gap:8px}
 
+.hint-text{font-size:.8rem;color:var(--ink-soft);margin-top:8px}
+
+.finished-banner{
+  background:var(--gold);
+  color:#3a2a06;
+  font-family:"Fredoka",sans-serif;
+  font-weight:700;
+  text-align:center;
+  padding:12px 16px;
+  border-radius:12px;
+  margin-bottom:16px;
+}
+
+.reenganche-badge{
+  display:inline-block;
+  margin-left:4px;
+  color:var(--gold-dark);
+  font-weight:700;
+  cursor:help;
+}
+
+.th-group{
+  background:var(--gold-dark) !important;
+  color:#fff;
+}
+
+.edit-players-row input.name-input{
+  flex:1;
+  font-weight:600;
+  color:var(--felt-dark);
+  border:1px solid transparent;
+  background:transparent;
+  padding:6px 8px;
+}
+.edit-players-row input.name-input:focus{
+  border-color:var(--gold);
+  background:#fff;
+}
+
+.winner-name::after{
+  content:" 🏆";
+}
+
 @media (max-width:640px){
   .card-panel{padding:18px}
   .settings-grid{grid-template-columns:1fr}
