@@ -35,10 +35,12 @@ const maxInput = document.getElementById("maxInput");
 const useReenganches = document.getElementById("useReenganches");
 
 const roomCodeTitle = document.getElementById("roomCodeTitle");
-const scoreTableHeadRow = document.querySelector("#scoreTable thead tr");
+const scoreTableHeadRow1 = document.getElementById("scoreTableHeadRow1");
+const scoreTableHeadRow2 = document.getElementById("scoreTableHeadRow2");
 const scoreTableBody = document.querySelector("#scoreTable tbody");
 const emptyState = document.getElementById("emptyState");
 const viewBadge = document.getElementById("viewBadge");
+const finishedBanner = document.getElementById("finishedBanner");
 
 const openApuntar = document.getElementById("openApuntar");
 const apuntarModal = document.getElementById("apuntarModal");
@@ -54,6 +56,7 @@ const shareView = document.getElementById("shareView");
 const shareResult = document.getElementById("shareResult");
 const qrContainer = document.getElementById("qrContainer");
 const closeShare = document.getElementById("closeShare");
+const shareViewOnlyNote = document.getElementById("shareViewOnlyNote");
 
 const editPlayersBtn = document.getElementById("editPlayersBtn");
 const editPlayersModal = document.getElementById("editPlayersModal");
@@ -73,6 +76,10 @@ const progressClose = document.getElementById("progressClose");
 const rulesBtn = document.getElementById("rulesBtn");
 const rulesModal = document.getElementById("rulesModal");
 const rulesClose = document.getElementById("rulesClose");
+const rulesSettings = document.getElementById("rulesSettings");
+const rulesMaxInput = document.getElementById("rulesMaxInput");
+const rulesUseReenganches = document.getElementById("rulesUseReenganches");
+const rulesSave = document.getElementById("rulesSave");
 
 /* Copia de trabajo para el modal de editar jugadores (no se guarda hasta pulsar "Guardar") */
 let editDraftPlayers = [];
@@ -94,48 +101,102 @@ function isEditable() {
   return state.urlMode !== "view";
 }
 
-/* Calcula, para cada jugador: histórico de acumulados ronda a ronda, total, reenganches y si está eliminado */
+/*
+ Recorre las rondas y calcula, ronda a ronda:
+ - el total de cada jugador
+ - si algún jugador supera el máximo esa ronda:
+     - con reenganches: suma un reenganche y su puntuación baja hasta igualar
+       la más alta entre los jugadores que NO han superado el máximo esa ronda
+     - sin reenganches: el jugador queda eliminado (se congela su puntuación)
+ - si TODOS los jugadores en juego superan el máximo en la misma ronda, la
+   partida se da por finalizada en ese punto (ya no hay a quién "engancharse")
+*/
 function computeStats() {
-  const stats = {};
+  const totals = {};
+  const reenganchesCount = {};
+  const eliminated = {};
   state.players.forEach((p) => {
-    stats[p.id] = {
-      history: [],       // acumulado tras cada ronda (solo rondas en las que ya existía o participó)
-      total: p.startingScore || 0,
-      reenganches: 0,
-      eliminated: false
+    totals[p.id] = p.startingScore || 0;
+    reenganchesCount[p.id] = 0;
+    eliminated[p.id] = false;
+  });
+
+  const roundMeta = []; // roundMeta[r] = { playerId: {before, raw, final, reenganched} }
+  let gameFinished = false;
+  let finishedAtRound = null;
+
+  for (let r = 0; r < state.rounds.length; r++) {
+    if (gameFinished) break;
+    const round = state.rounds[r];
+
+    const activePlayers = state.players.filter((p) => !eliminated[p.id]);
+    const rawTotals = {};
+    const considered = [];
+    activePlayers.forEach((p) => {
+      const val = round[p.id];
+      if (val === undefined || val === null) return; // no jugó esa ronda (se unió después)
+      rawTotals[p.id] = totals[p.id] + val;
+      considered.push(p);
+    });
+
+    if (considered.length === 0) {
+      roundMeta.push({});
+      continue;
+    }
+
+    const crossing = considered.filter((p) => rawTotals[p.id] >= state.maxPoints);
+    const nonCrossing = considered.filter((p) => rawTotals[p.id] < state.maxPoints);
+    const meta = {};
+
+    if (crossing.length > 0 && crossing.length === considered.length) {
+      // todos los que jugaban esta ronda llegan al máximo a la vez -> fin de la partida
+      considered.forEach((p) => {
+        meta[p.id] = { before: totals[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
+        totals[p.id] = rawTotals[p.id];
+      });
+      roundMeta.push(meta);
+      gameFinished = true;
+      finishedAtRound = r;
+      break;
+    }
+
+    const nonCrossingMax = nonCrossing.length
+      ? Math.max(...nonCrossing.map((p) => rawTotals[p.id]))
+      : 0;
+
+    considered.forEach((p) => {
+      const raw = rawTotals[p.id];
+      if (raw >= state.maxPoints) {
+        if (state.useReenganches) {
+          reenganchesCount[p.id]++;
+          meta[p.id] = { before: totals[p.id], raw, final: nonCrossingMax, reenganched: true };
+          totals[p.id] = nonCrossingMax;
+        } else {
+          eliminated[p.id] = true;
+          meta[p.id] = { before: totals[p.id], raw, final: raw, reenganched: false };
+          totals[p.id] = raw;
+        }
+      } else {
+        meta[p.id] = { before: totals[p.id], raw, final: raw, reenganched: false };
+        totals[p.id] = raw;
+      }
+    });
+
+    roundMeta.push(meta);
+  }
+
+  const numRounds = gameFinished ? finishedAtRound + 1 : state.rounds.length;
+
+  const byPlayer = {};
+  state.players.forEach((p) => {
+    byPlayer[p.id] = {
+      total: totals[p.id],
+      reenganches: reenganchesCount[p.id],
+      eliminated: eliminated[p.id]
     };
   });
 
-  state.rounds.forEach((round) => {
-    state.players.forEach((p) => {
-      const s = stats[p.id];
-      if (s.eliminated) {
-        s.history.push(null);
-        return;
-      }
-      const val = round[p.id];
-      if (val === undefined || val === null) {
-        // el jugador no jugó esa ronda (se unió después)
-        s.history.push(s.history.length ? s.history[s.history.length - 1] : null);
-        return;
-      }
-      const before = s.total;
-      s.total += val;
-      s.history.push(s.total);
-
-      if (s.total >= state.maxPoints) {
-        if (before < state.maxPoints) {
-          if (state.useReenganches) {
-            s.reenganches++;
-          } else {
-            s.eliminated = true;
-          }
-        }
-      }
-    });
-  });
-
-  return stats;
+  return { byPlayer, roundMeta, gameFinished, numRounds };
 }
 
 /* ---------- Añadir jugador (pantalla inicial) ---------- */
@@ -210,7 +271,6 @@ function showGame() {
   roomCodeTitle.textContent = state.roomCode;
 
   const editable = isEditable();
-  openApuntar.classList.toggle("hidden", !editable);
   editPlayersBtn.classList.toggle("hidden", !editable);
   viewBadge.classList.toggle("hidden", editable);
 
@@ -220,56 +280,101 @@ function showGame() {
 /* ---------- Render tabla histórica ---------- */
 function renderGame() {
   const stats = computeStats();
-  const numRounds = state.rounds.length;
+  const numRounds = stats.numRounds;
 
-  // Cabecera: Jugador | R1 | R2 | ... | Rn | Total | Reenganches
-  scoreTableHeadRow.innerHTML = "<th>Jugador</th>";
-  for (let r = 1; r <= numRounds; r++) {
-    const th = document.createElement("th");
-    th.textContent = "R" + r;
-    scoreTableHeadRow.appendChild(th);
-  }
-  const thTotal = document.createElement("th");
-  thTotal.textContent = "Total";
-  scoreTableHeadRow.appendChild(thTotal);
-  if (state.useReenganches) {
-    const thRe = document.createElement("th");
-    thRe.textContent = "Reeng.";
-    scoreTableHeadRow.appendChild(thRe);
+  const editable = isEditable();
+  openApuntar.disabled = !editable || stats.gameFinished;
+  openApuntar.textContent = stats.gameFinished ? "🏁 Partida finalizada" : "✏️ Apuntar ronda";
+
+  if (stats.gameFinished) {
+    let winner = null;
+    state.players.forEach((p) => {
+      const t = stats.byPlayer[p.id].total;
+      if (!winner || t < stats.byPlayer[winner.id].total) winner = p;
+    });
+    finishedBanner.textContent = winner
+      ? `🏁 Partida finalizada — gana ${winner.name} con ${stats.byPlayer[winner.id].total} puntos`
+      : "🏁 Partida finalizada";
+    finishedBanner.classList.remove("hidden");
+  } else {
+    finishedBanner.classList.add("hidden");
   }
 
+  // ---- Cabecera ----
+  scoreTableHeadRow1.innerHTML = "";
+  scoreTableHeadRow2.innerHTML = "";
+
+  const thJugador = document.createElement("th");
+  thJugador.textContent = "Jugador";
+  thJugador.rowSpan = numRounds > 0 ? 2 : 1;
+  scoreTableHeadRow1.appendChild(thJugador);
+
+  const thPuntuacion = document.createElement("th");
+  thPuntuacion.textContent = "Puntuación";
+  thPuntuacion.rowSpan = numRounds > 0 ? 2 : 1;
+  scoreTableHeadRow1.appendChild(thPuntuacion);
+
+  const thReenganches = document.createElement("th");
+  thReenganches.textContent = "Reenganches";
+  thReenganches.rowSpan = numRounds > 0 ? 2 : 1;
+  scoreTableHeadRow1.appendChild(thReenganches);
+
+  if (numRounds > 0) {
+    const thGroup = document.createElement("th");
+    thGroup.textContent = "Rondas anteriores";
+    thGroup.colSpan = numRounds;
+    thGroup.className = "th-group";
+    scoreTableHeadRow1.appendChild(thGroup);
+
+    for (let r = numRounds; r >= 1; r--) {
+      const th = document.createElement("th");
+      th.textContent = "R" + r;
+      scoreTableHeadRow2.appendChild(th);
+    }
+  }
+
+  // ---- Filas ----
   scoreTableBody.innerHTML = "";
   state.players.forEach((p) => {
-    const s = stats[p.id];
+    const s = stats.byPlayer[p.id];
     const tr = document.createElement("tr");
 
     const tdName = document.createElement("td");
     tdName.textContent = p.name;
+    if (stats.gameFinished) {
+      const isWinner = state.players.every((other) => stats.byPlayer[other.id].total >= s.total);
+      if (isWinner) tdName.classList.add("winner-name");
+    }
     tr.appendChild(tdName);
 
-    for (let r = 0; r < numRounds; r++) {
+    const tdPuntuacion = document.createElement("td");
+    tdPuntuacion.className = "cell-total";
+    tdPuntuacion.textContent = s.eliminated ? "Eliminado" : s.total;
+    if (s.eliminated) tdPuntuacion.classList.add("cell-eliminated");
+    tr.appendChild(tdPuntuacion);
+
+    const tdRe = document.createElement("td");
+    tdRe.textContent = s.reenganches;
+    tr.appendChild(tdRe);
+
+    for (let r = numRounds; r >= 1; r--) {
       const td = document.createElement("td");
-      const val = s.history[r];
-      if (val === null || val === undefined) {
+      const meta = stats.roundMeta[r - 1] ? stats.roundMeta[r - 1][p.id] : undefined;
+      if (!meta) {
         td.textContent = "–";
         td.className = "cell-muted";
       } else {
-        td.textContent = val;
-        if (val < 0) td.className = "cell-negative";
+        td.textContent = meta.final;
+        if (meta.final < 0) td.classList.add("cell-negative");
+        if (meta.reenganched) {
+          const badge = document.createElement("span");
+          badge.className = "reenganche-badge";
+          badge.textContent = "↺";
+          badge.title = `Llegó a ${meta.raw} y se reenganchó a ${meta.final}`;
+          td.appendChild(badge);
+        }
       }
       tr.appendChild(td);
-    }
-
-    const tdTotal = document.createElement("td");
-    tdTotal.className = "cell-total";
-    tdTotal.textContent = s.eliminated ? "Eliminado" : s.total;
-    if (s.eliminated) tdTotal.classList.add("cell-eliminated");
-    tr.appendChild(tdTotal);
-
-    if (state.useReenganches) {
-      const tdRe = document.createElement("td");
-      tdRe.textContent = s.reenganches;
-      tr.appendChild(tdRe);
     }
 
     scoreTableBody.appendChild(tr);
@@ -323,11 +428,12 @@ async function saveRoom() {
 /* ---------- Apuntar ronda ---------- */
 openApuntar.onclick = () => {
   if (!isEditable()) return alert("Estás en modo solo ver, no puedes apuntar rondas");
-
   const stats = computeStats();
+  if (stats.gameFinished) return;
+
   apuntarList.innerHTML = "";
   state.players.forEach((p) => {
-    if (stats[p.id].eliminated) return; // los eliminados no juegan más rondas
+    if (stats.byPlayer[p.id].eliminated) return; // los eliminados no juegan más rondas
     const row = document.createElement("div");
     row.className = "apuntar-row";
     row.innerHTML = `
@@ -376,6 +482,9 @@ apuntarCancel.onclick = () => apuntarModal.classList.add("hidden");
 shareBtn.onclick = () => {
   shareResult.textContent = "";
   qrContainer.innerHTML = "";
+  const editable = isEditable();
+  shareEdit.classList.toggle("hidden", !editable);
+  shareViewOnlyNote.classList.toggle("hidden", editable);
   shareModal.classList.remove("hidden");
 };
 
@@ -384,6 +493,7 @@ function buildLink(mode) {
 }
 
 shareEdit.onclick = () => {
+  if (!isEditable()) return;
   const link = buildLink("edit");
   shareResult.textContent = link;
   qrContainer.innerHTML = "";
@@ -408,7 +518,7 @@ editPlayersBtn.onclick = () => {
   const stats = computeStats();
   let maxTotal = 0;
   state.players.forEach((p) => {
-    const t = stats[p.id].eliminated ? 0 : stats[p.id].total;
+    const t = stats.byPlayer[p.id].eliminated ? 0 : stats.byPlayer[p.id].total;
     if (t > maxTotal) maxTotal = t;
   });
   editPlayerScore.value = maxTotal;
@@ -422,26 +532,49 @@ function renderEditPlayersList() {
   editDraftPlayers.forEach((p, idx) => {
     const li = document.createElement("li");
     li.className = "edit-players-row";
-    li.innerHTML = `
-      <div class="order-btns">
-        <button type="button" class="icon-btn" data-action="up" ${idx === 0 ? "disabled" : ""}>▲</button>
-        <button type="button" class="icon-btn" data-action="down" ${idx === editDraftPlayers.length - 1 ? "disabled" : ""}>▼</button>
-      </div>
-      <span class="name">${p.name}</span>
-      <button type="button" class="icon-btn icon-btn--danger" data-action="delete">✕</button>
-    `;
-    li.querySelector('[data-action="up"]').onclick = () => {
+
+    const orderDiv = document.createElement("div");
+    orderDiv.className = "order-btns";
+    const upBtn = document.createElement("button");
+    upBtn.type = "button";
+    upBtn.className = "icon-btn";
+    upBtn.textContent = "▲";
+    upBtn.disabled = idx === 0;
+    upBtn.onclick = () => {
       [editDraftPlayers[idx - 1], editDraftPlayers[idx]] = [editDraftPlayers[idx], editDraftPlayers[idx - 1]];
       renderEditPlayersList();
     };
-    li.querySelector('[data-action="down"]').onclick = () => {
+    const downBtn = document.createElement("button");
+    downBtn.type = "button";
+    downBtn.className = "icon-btn";
+    downBtn.textContent = "▼";
+    downBtn.disabled = idx === editDraftPlayers.length - 1;
+    downBtn.onclick = () => {
       [editDraftPlayers[idx + 1], editDraftPlayers[idx]] = [editDraftPlayers[idx], editDraftPlayers[idx + 1]];
       renderEditPlayersList();
     };
-    li.querySelector('[data-action="delete"]').onclick = () => {
+    orderDiv.appendChild(upBtn);
+    orderDiv.appendChild(downBtn);
+
+    const nameInput = document.createElement("input");
+    nameInput.className = "name-input";
+    nameInput.value = p.name;
+    nameInput.oninput = () => {
+      editDraftPlayers[idx].name = nameInput.value;
+    };
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "icon-btn icon-btn--danger";
+    delBtn.textContent = "✕";
+    delBtn.onclick = () => {
       editDraftPlayers.splice(idx, 1);
       renderEditPlayersList();
     };
+
+    li.appendChild(orderDiv);
+    li.appendChild(nameInput);
+    li.appendChild(delBtn);
     editPlayersList.appendChild(li);
   });
 }
@@ -459,7 +592,10 @@ editPlayerAddBtn.onclick = () => {
 editPlayersCancel.onclick = () => editPlayersModal.classList.add("hidden");
 
 editPlayersSave.onclick = async () => {
-  state.players = editDraftPlayers.map((p) => ({ ...p }));
+  const names = editDraftPlayers.map((p) => p.name.trim());
+  if (names.some((n) => !n)) return alert("Ningún jugador puede tener el nombre vacío");
+
+  state.players = editDraftPlayers.map((p) => ({ ...p, name: p.name.trim() }));
   await saveRoom();
   editPlayersModal.classList.add("hidden");
   renderGame();
@@ -468,7 +604,7 @@ editPlayersSave.onclick = async () => {
 /* ---------- Ver progreso ---------- */
 progressBtn.onclick = () => {
   const stats = computeStats();
-  const numRounds = state.rounds.length;
+  const numRounds = stats.numRounds;
 
   progressEmpty.classList.toggle("hidden", numRounds > 0);
 
@@ -478,20 +614,75 @@ progressBtn.onclick = () => {
   }
 
   if (numRounds > 0) {
-    const labels = ["Salida"];
-    for (let r = 1; r <= numRounds; r++) labels.push("R" + r);
-
     const palette = ["#14532d", "#b3261e", "#d4a24c", "#2563eb", "#7c3aed", "#0f766e", "#c2410c", "#334155"];
+
+    // Averiguar en qué rondas hay algún reenganche, para duplicar esa columna en el eje X
+    const roundHasReenganche = [];
+    for (let r = 1; r <= numRounds; r++) {
+      const meta = stats.roundMeta[r - 1] || {};
+      roundHasReenganche.push(Object.values(meta).some((m) => m.reenganched));
+    }
+
+    const labels = ["Inicio"];
+    for (let r = 1; r <= numRounds; r++) {
+      if (roundHasReenganche[r - 1]) {
+        labels.push("R" + r);
+        labels.push("R" + r + " ↺");
+      } else {
+        labels.push("R" + r);
+      }
+    }
+
     const datasets = state.players.map((p, i) => {
-      const s = stats[p.id];
-      const data = [p.startingScore || 0, ...s.history.map((v) => (v === null ? null : v))];
+      const color = palette[i % palette.length];
+      const data = [p.startingScore || 0];
+      const pointRadius = [3];
+      const pointStyle = ["circle"];
+      const pointColor = [color];
+
+      for (let r = 1; r <= numRounds; r++) {
+        const meta = stats.roundMeta[r - 1] ? stats.roundMeta[r - 1][p.id] : undefined;
+        if (roundHasReenganche[r - 1]) {
+          if (meta && meta.reenganched) {
+            data.push(meta.raw);
+            pointRadius.push(7);
+            pointStyle.push("triangle");
+            pointColor.push("#d4a24c");
+            data.push(meta.final);
+            pointRadius.push(7);
+            pointStyle.push("star");
+            pointColor.push("#d4a24c");
+          } else {
+            const val = meta ? meta.final : null;
+            data.push(val);
+            pointRadius.push(3);
+            pointStyle.push("circle");
+            pointColor.push(color);
+            data.push(val);
+            pointRadius.push(3);
+            pointStyle.push("circle");
+            pointColor.push(color);
+          }
+        } else {
+          const val = meta ? meta.final : null;
+          data.push(val);
+          pointRadius.push(3);
+          pointStyle.push("circle");
+          pointColor.push(color);
+        }
+      }
+
       return {
         label: p.name,
         data,
-        borderColor: palette[i % palette.length],
-        backgroundColor: palette[i % palette.length],
+        borderColor: color,
+        backgroundColor: color,
+        pointRadius,
+        pointStyle,
+        pointBackgroundColor: pointColor,
+        pointBorderColor: pointColor,
         spanGaps: true,
-        tension: 0.25
+        tension: 0.2
       };
     });
 
@@ -502,7 +693,7 @@ progressBtn.onclick = () => {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { position: "bottom" } },
-        scales: { y: { title: { display: true, text: "Puntos acumulados" } } }
+        scales: { y: { title: { display: true, text: "Puntos" } } }
       }
     });
   }
@@ -512,9 +703,29 @@ progressBtn.onclick = () => {
 
 progressClose.onclick = () => progressModal.classList.add("hidden");
 
-/* ---------- Reglas ---------- */
-rulesBtn.onclick = () => rulesModal.classList.remove("hidden");
+/* ---------- Reglas / ajustes ---------- */
+rulesBtn.onclick = () => {
+  const editable = isEditable();
+  rulesSettings.classList.toggle("hidden", !editable);
+  rulesSave.classList.toggle("hidden", !editable);
+  rulesMaxInput.value = state.maxPoints;
+  rulesUseReenganches.checked = state.useReenganches;
+  rulesModal.classList.remove("hidden");
+};
+
 rulesClose.onclick = () => rulesModal.classList.add("hidden");
+
+rulesSave.onclick = async () => {
+  if (!isEditable()) return;
+  let max = parseInt(rulesMaxInput.value, 10);
+  if (isNaN(max) || max <= 0) return alert("Pon un máximo de puntos válido");
+
+  state.maxPoints = max;
+  state.useReenganches = rulesUseReenganches.checked;
+  await saveRoom();
+  rulesModal.classList.add("hidden");
+  renderGame();
+};
 
 /* ---------- Cargar desde URL ---------- */
 function loadFromUrl() {
