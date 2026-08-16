@@ -4,51 +4,83 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chinchón</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 <body>
 
-  <div id="welcome" class="screen">
-    <h1>Crear partida</h1>
+  <div class="table-felt">
+    <div class="suit-deco">♠</div>
+    <div class="suit-deco suit-deco--2">♥</div>
+    <div class="suit-deco suit-deco--3">♣</div>
+    <div class="suit-deco suit-deco--4">♦</div>
 
-    <div>
-      <input id="playerInput" placeholder="Nombre jugador" />
-      <button id="addPlayerBtn">Añadir</button>
+    <div id="welcome" class="screen card-panel">
+      <h1 class="brand">Chinchón</h1>
+      <p class="subtitle">Crea una partida y lleva los puntos entre todos, en tiempo real.</p>
+
+      <section class="panel-section">
+        <h2>Jugadores</h2>
+        <div class="input-row">
+          <input id="playerInput" placeholder="Nombre del jugador" autocomplete="off" />
+          <button id="addPlayerBtn" class="btn btn-gold">Añadir</button>
+        </div>
+        <ul id="playerList" class="chip-list"></ul>
+      </section>
+
+      <section class="panel-section">
+        <h2>Ajustes de la partida</h2>
+        <div class="settings-grid">
+          <label class="field">
+            <span>Código de sala (opcional)</span>
+            <input id="codeInput" maxlength="6" placeholder="Se genera solo" />
+          </label>
+          <label class="field">
+            <span>Puntos para perder</span>
+            <input id="maxInput" type="number" value="101" />
+          </label>
+          <label class="field field-check">
+            <input id="useReenganches" type="checkbox" checked />
+            <span>Permitir reenganches</span>
+          </label>
+        </div>
+      </section>
+
+      <button id="startBtn" class="btn btn-primary btn-block">Comenzar partida</button>
     </div>
 
-    <ul id="playerList"></ul>
+    <div id="game" class="screen game-screen hidden">
+      <header class="game-header card-panel">
+        <div class="game-title">
+          <span class="eyebrow">Sala</span>
+          <h1 id="roomCodeTitle"></h1>
+        </div>
+        <div class="room-actions">
+          <button id="openApuntar" class="btn btn-primary">✏️ Apuntar ronda</button>
+          <button id="progressBtn" class="btn btn-ghost">📈 Ver progreso</button>
+          <button id="editPlayersBtn" class="btn btn-ghost">👥 Editar jugadores</button>
+          <button id="shareBtn" class="btn btn-ghost">🔗 Compartir</button>
+          <button id="rulesBtn" class="btn btn-ghost">📖 Reglas</button>
+        </div>
+        <p id="viewBadge" class="view-badge hidden">👀 Estás en modo solo ver</p>
+      </header>
 
-    <div>
-      <input id="codeInput" maxlength="6" placeholder="Código (opcional)" />
-      <input id="maxInput" type="number" value="101" />
-      <label><input id="useReenganches" type="checkbox" checked /> Reenganches</label>
+      <main class="card-panel">
+        <div class="table-scroll">
+          <table id="scoreTable">
+            <thead>
+              <tr></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="emptyState" class="empty-state hidden">Todavía no se ha apuntado ninguna ronda. ¡Dale a "Apuntar ronda" para empezar!</p>
+      </main>
     </div>
-
-    <button id="startBtn">Comenzar partida</button>
-  </div>
-
-  <div id="game" class="screen hidden">
-    <header>
-      <h1>Chinchón — <span id="roomCodeTitle"></span></h1>
-      <div class="room-actions">
-        <button id="openApuntar">Apuntar ronda</button>
-        <button id="shareBtn">Compartir</button>
-        <button id="editPlayersBtn">Editar jugadores</button>
-        <button id="progressBtn">Ver progreso</button>
-        <button id="rulesBtn">Reglas</button>
-      </div>
-    </header>
-
-    <main>
-      <table id="scoreTable">
-        <thead>
-          <tr><th>Jugador</th><th>Puntos</th><th>Reenganches</th><th>Última</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </main>
   </div>
 
   <!-- Modal apuntar -->
@@ -56,11 +88,11 @@
     <div class="modal-content">
       <h2>Apuntar ronda</h2>
       <form id="apuntarForm">
-        <div id="apuntarList"></div>
-        <div>
-          <button id="minus10Key" type="button">-10</button>
-          <button id="apuntarSubmit" type="submit">Apuntar ronda</button>
-          <button id="apuntarCancel" type="button">Cancelar</button>
+        <div id="apuntarList" class="apuntar-list"></div>
+        <div class="modal-actions">
+          <button id="minus10Key" type="button" class="btn btn-chip">-10</button>
+          <button id="apuntarCancel" type="button" class="btn btn-ghost">Cancelar</button>
+          <button id="apuntarSubmit" type="submit" class="btn btn-primary">Apuntar ronda</button>
         </div>
       </form>
     </div>
@@ -68,13 +100,74 @@
 
   <!-- Modal compartir -->
   <div id="shareModal" class="modal hidden">
+    <div class="modal-content modal-content--narrow">
+      <h2>Compartir partida</h2>
+      <div class="modal-actions modal-actions--start">
+        <button id="shareEdit" class="btn btn-primary">Modo edición</button>
+        <button id="shareView" class="btn btn-ghost">Modo ver</button>
+      </div>
+      <p id="shareResult" class="share-link"></p>
+      <div id="qrContainer" class="qr-container"></div>
+      <div class="modal-actions">
+        <button id="closeShare" class="btn btn-ghost">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar jugadores -->
+  <div id="editPlayersModal" class="modal hidden">
     <div class="modal-content">
-      <h2>Compartir</h2>
-      <button id="shareEdit">Modo edición</button>
-      <button id="shareView">Modo ver</button>
-      <div id="shareResult"></div>
-      <div id="qrContainer"></div>
-      <button id="closeShare">Cerrar</button>
+      <h2>Editar jugadores</h2>
+      <ul id="editPlayersList" class="edit-players-list"></ul>
+
+      <div class="add-player-row">
+        <input id="editPlayerName" placeholder="Nombre del nuevo jugador" autocomplete="off" />
+        <label class="field field-small">
+          <span>Puntos de salida</span>
+          <input id="editPlayerScore" type="number" value="0" />
+        </label>
+        <button id="editPlayerAddBtn" type="button" class="btn btn-gold">Añadir</button>
+      </div>
+
+      <div class="modal-actions">
+        <button id="editPlayersCancel" type="button" class="btn btn-ghost">Cancelar</button>
+        <button id="editPlayersSave" type="button" class="btn btn-primary">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal progreso -->
+  <div id="progressModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Progreso de la partida</h2>
+      <div id="progressEmpty" class="empty-state hidden">Aún no hay rondas suficientes para dibujar la gráfica.</div>
+      <div class="chart-container">
+        <canvas id="progressChart"></canvas>
+      </div>
+      <div class="modal-actions">
+        <button id="progressClose" type="button" class="btn btn-ghost">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal reglas -->
+  <div id="rulesModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Reglas</h2>
+      <div class="rules-body">
+        <p>Esta app lleva la cuenta de una partida de Chinchón entre varios jugadores. Así funciona:</p>
+        <ul>
+          <li><strong>Apuntar ronda:</strong> al terminar cada ronda, introduce los puntos que se lleva cada jugador (puedes usar negativos). Se suman a su total.</li>
+          <li><strong>Botón -10:</strong> rellena automáticamente con -10 la primera casilla vacía, para apuntar rápido a quien cierra la ronda.</li>
+          <li><strong>Puntos para perder:</strong> cuando un jugador alcanza o supera ese total, queda eliminado... salvo que la partida tenga reenganches activados.</li>
+          <li><strong>Reenganches:</strong> si están activados, el jugador no queda eliminado al superar el límite: simplemente suma un reenganche y sigue jugando.</li>
+          <li><strong>Historial:</strong> la tabla principal muestra la puntuación ronda a ronda de cada jugador, de la primera a la última.</li>
+          <li><strong>Compartir:</strong> genera un enlace de edición (para apuntar puntos) o de solo ver (para seguir la partida sin poder tocar nada).</li>
+        </ul>
+      </div>
+      <div class="modal-actions">
+        <button id="rulesClose" type="button" class="btn btn-ghost">Cerrar</button>
+      </div>
     </div>
   </div>
 
