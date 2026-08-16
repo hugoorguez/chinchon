@@ -71,6 +71,10 @@
 
       <main class="card-panel">
         <p id="finishedBanner" class="finished-banner hidden"></p>
+        <div id="finishedActions" class="finished-actions hidden">
+          <button id="newGameBtn" class="btn btn-primary">🔄 Nueva partida</button>
+          <button id="newGameSamePlayersBtn" class="btn btn-gold">👥 Nueva partida con estos jugadores</button>
+        </div>
         <div class="table-scroll">
           <table id="scoreTable">
             <thead>
@@ -109,7 +113,7 @@
         <button id="shareView" class="btn btn-ghost">Modo ver</button>
       </div>
       <p id="shareViewOnlyNote" class="hint-text hidden">Estás en modo solo ver: solo puedes compartir enlaces de modo ver.</p>
-      <p id="shareResult" class="share-link"></p>
+      <p id="shareResult" class="share-link hidden"></p>
       <div id="qrContainer" class="qr-container"></div>
       <div class="modal-actions">
         <button id="closeShare" class="btn btn-ghost">Cerrar</button>

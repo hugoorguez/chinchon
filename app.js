@@ -41,6 +41,9 @@ const scoreTableBody = document.querySelector("#scoreTable tbody");
 const emptyState = document.getElementById("emptyState");
 const viewBadge = document.getElementById("viewBadge");
 const finishedBanner = document.getElementById("finishedBanner");
+const finishedActions = document.getElementById("finishedActions");
+const newGameBtn = document.getElementById("newGameBtn");
+const newGameSamePlayersBtn = document.getElementById("newGameSamePlayersBtn");
 
 const openApuntar = document.getElementById("openApuntar");
 const apuntarModal = document.getElementById("apuntarModal");
@@ -121,7 +124,7 @@ function computeStats() {
     eliminated[p.id] = false;
   });
 
-  const roundMeta = []; // roundMeta[r] = { playerId: {before, raw, final, reenganched} }
+  const roundMeta = []; // roundMeta[r] = { playerId: {before, value, raw, final, reenganched} }
   let gameFinished = false;
   let finishedAtRound = null;
 
@@ -148,10 +151,10 @@ function computeStats() {
     const nonCrossing = considered.filter((p) => rawTotals[p.id] < state.maxPoints);
     const meta = {};
 
-    if (crossing.length > 0 && crossing.length === considered.length) {
-      // todos los que jugaban esta ronda llegan al máximo a la vez -> fin de la partida
+    if (state.useReenganches && crossing.length > 0 && crossing.length === considered.length) {
+      // todos los que jugaban esta ronda llegan al máximo a la vez y no hay a quién "engancharse" -> fin de la partida
       considered.forEach((p) => {
-        meta[p.id] = { before: totals[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
+        meta[p.id] = { before: totals[p.id], value: round[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
         totals[p.id] = rawTotals[p.id];
       });
       roundMeta.push(meta);
@@ -169,20 +172,30 @@ function computeStats() {
       if (raw >= state.maxPoints) {
         if (state.useReenganches) {
           reenganchesCount[p.id]++;
-          meta[p.id] = { before: totals[p.id], raw, final: nonCrossingMax, reenganched: true };
+          meta[p.id] = { before: totals[p.id], value: round[p.id], raw, final: nonCrossingMax, reenganched: true };
           totals[p.id] = nonCrossingMax;
         } else {
           eliminated[p.id] = true;
-          meta[p.id] = { before: totals[p.id], raw, final: raw, reenganched: false };
+          meta[p.id] = { before: totals[p.id], value: round[p.id], raw, final: raw, reenganched: false };
           totals[p.id] = raw;
         }
       } else {
-        meta[p.id] = { before: totals[p.id], raw, final: raw, reenganched: false };
+        meta[p.id] = { before: totals[p.id], value: round[p.id], raw, final: raw, reenganched: false };
         totals[p.id] = raw;
       }
     });
 
     roundMeta.push(meta);
+
+    // Sin reenganches: si tras esta ronda solo queda un jugador en pie, la partida termina (gana el que queda)
+    if (!state.useReenganches) {
+      const remaining = state.players.filter((p) => !eliminated[p.id]);
+      if (remaining.length <= 1 && state.players.length > 1) {
+        gameFinished = true;
+        finishedAtRound = r;
+        break;
+      }
+    }
   }
 
   const numRounds = gameFinished ? finishedAtRound + 1 : state.rounds.length;
@@ -296,8 +309,10 @@ function renderGame() {
       ? `🏁 Partida finalizada — gana ${winner.name} con ${stats.byPlayer[winner.id].total} puntos`
       : "🏁 Partida finalizada";
     finishedBanner.classList.remove("hidden");
+    finishedActions.classList.toggle("hidden", !editable);
   } else {
     finishedBanner.classList.add("hidden");
+    finishedActions.classList.add("hidden");
   }
 
   // ---- Cabecera ----
@@ -307,6 +322,7 @@ function renderGame() {
   const thJugador = document.createElement("th");
   thJugador.textContent = "Jugador";
   thJugador.rowSpan = numRounds > 0 ? 2 : 1;
+  thJugador.className = "th-player";
   scoreTableHeadRow1.appendChild(thJugador);
 
   const thPuntuacion = document.createElement("th");
@@ -364,13 +380,13 @@ function renderGame() {
         td.textContent = "–";
         td.className = "cell-muted";
       } else {
-        td.textContent = meta.final;
-        if (meta.final < 0) td.classList.add("cell-negative");
+        td.textContent = meta.value;
+        if (meta.value < 0) td.classList.add("cell-negative");
         if (meta.reenganched) {
           const badge = document.createElement("span");
           badge.className = "reenganche-badge";
           badge.textContent = "↺";
-          badge.title = `Llegó a ${meta.raw} y se reenganchó a ${meta.final}`;
+          badge.title = `Con esos puntos llegó a ${meta.raw} y se reenganchó, bajando a ${meta.final}`;
           td.appendChild(badge);
         }
       }
@@ -481,6 +497,7 @@ apuntarCancel.onclick = () => apuntarModal.classList.add("hidden");
 /* ---------- Compartir ---------- */
 shareBtn.onclick = () => {
   shareResult.textContent = "";
+  shareResult.classList.add("hidden");
   qrContainer.innerHTML = "";
   const editable = isEditable();
   shareEdit.classList.toggle("hidden", !editable);
@@ -496,6 +513,7 @@ shareEdit.onclick = () => {
   if (!isEditable()) return;
   const link = buildLink("edit");
   shareResult.textContent = link;
+  shareResult.classList.remove("hidden");
   qrContainer.innerHTML = "";
   QRCode.toCanvas(link, { width: 160 }, (_, canvas) => qrContainer.appendChild(canvas));
 };
@@ -503,6 +521,7 @@ shareEdit.onclick = () => {
 shareView.onclick = () => {
   const link = buildLink("view");
   shareResult.textContent = link;
+  shareResult.classList.remove("hidden");
   qrContainer.innerHTML = "";
   QRCode.toCanvas(link, { width: 160 }, (_, canvas) => qrContainer.appendChild(canvas));
 };
@@ -616,22 +635,8 @@ progressBtn.onclick = () => {
   if (numRounds > 0) {
     const palette = ["#14532d", "#b3261e", "#d4a24c", "#2563eb", "#7c3aed", "#0f766e", "#c2410c", "#334155"];
 
-    // Averiguar en qué rondas hay algún reenganche, para duplicar esa columna en el eje X
-    const roundHasReenganche = [];
-    for (let r = 1; r <= numRounds; r++) {
-      const meta = stats.roundMeta[r - 1] || {};
-      roundHasReenganche.push(Object.values(meta).some((m) => m.reenganched));
-    }
-
     const labels = ["Inicio"];
-    for (let r = 1; r <= numRounds; r++) {
-      if (roundHasReenganche[r - 1]) {
-        labels.push("R" + r);
-        labels.push("R" + r + " ↺");
-      } else {
-        labels.push("R" + r);
-      }
-    }
+    for (let r = 1; r <= numRounds; r++) labels.push("R" + r);
 
     const datasets = state.players.map((p, i) => {
       const color = palette[i % palette.length];
@@ -639,33 +644,19 @@ progressBtn.onclick = () => {
       const pointRadius = [3];
       const pointStyle = ["circle"];
       const pointColor = [color];
+      const roundInfo = [null]; // info extra por punto, para el tooltip
 
       for (let r = 1; r <= numRounds; r++) {
         const meta = stats.roundMeta[r - 1] ? stats.roundMeta[r - 1][p.id] : undefined;
-        if (roundHasReenganche[r - 1]) {
-          if (meta && meta.reenganched) {
-            data.push(meta.raw);
-            pointRadius.push(7);
-            pointStyle.push("triangle");
-            pointColor.push("#d4a24c");
-            data.push(meta.final);
-            pointRadius.push(7);
-            pointStyle.push("star");
-            pointColor.push("#d4a24c");
-          } else {
-            const val = meta ? meta.final : null;
-            data.push(val);
-            pointRadius.push(3);
-            pointStyle.push("circle");
-            pointColor.push(color);
-            data.push(val);
-            pointRadius.push(3);
-            pointStyle.push("circle");
-            pointColor.push(color);
-          }
+        const val = meta ? meta.final : null;
+        data.push(val);
+        roundInfo.push(meta || null);
+
+        if (meta && meta.reenganched) {
+          pointRadius.push(8);
+          pointStyle.push("star");
+          pointColor.push("#d4a24c");
         } else {
-          const val = meta ? meta.final : null;
-          data.push(val);
           pointRadius.push(3);
           pointStyle.push("circle");
           pointColor.push(color);
@@ -681,6 +672,7 @@ progressBtn.onclick = () => {
         pointStyle,
         pointBackgroundColor: pointColor,
         pointBorderColor: pointColor,
+        roundInfo,
         spanGaps: true,
         tension: 0.2
       };
@@ -692,7 +684,20 @@ progressBtn.onclick = () => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: "bottom" } },
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const info = context.dataset.roundInfo ? context.dataset.roundInfo[context.dataIndex] : null;
+                if (info && info.reenganched) {
+                  return `${context.dataset.label}: llegó a ${info.raw} y se reenganchó a ${info.final} ↺`;
+                }
+                return `${context.dataset.label}: ${context.formattedValue}`;
+              }
+            }
+          }
+        },
         scales: { y: { title: { display: true, text: "Puntos" } } }
       }
     });
@@ -726,6 +731,46 @@ rulesSave.onclick = async () => {
   rulesModal.classList.add("hidden");
   renderGame();
 };
+
+/* ---------- Nueva partida al terminar ---------- */
+function goToWelcome(prefillPlayers) {
+  if (subscription) {
+    subscription.unsubscribe();
+    subscription = null;
+  }
+
+  const keptMax = state.maxPoints;
+  const keptReenganches = state.useReenganches;
+
+  state = {
+    roomCode: null,
+    players: [],
+    rounds: [],
+    maxPoints: keptMax,
+    useReenganches: keptReenganches,
+    urlMode: "edit"
+  };
+
+  if (prefillPlayers) {
+    state.players = prefillPlayers.map((p) => ({ id: genId(), name: p.name, startingScore: 0 }));
+  }
+
+  codeInput.value = "";
+  maxInput.value = keptMax;
+  useReenganches.checked = keptReenganches;
+  renderPlayerList();
+
+  const url = new URL(location.href);
+  url.searchParams.delete("room");
+  url.searchParams.delete("mode");
+  history.replaceState(null, "", url);
+
+  game.classList.add("hidden");
+  welcome.classList.remove("hidden");
+}
+
+newGameBtn.onclick = () => goToWelcome(null);
+newGameSamePlayersBtn.onclick = () => goToWelcome(state.players);
 
 /* ---------- Cargar desde URL ---------- */
 function loadFromUrl() {

@@ -207,7 +207,7 @@ thead th{
   text-align:center;
   white-space:nowrap;
 }
-thead th:first-child{
+thead th.th-player{
   text-align:left;
   position:sticky;left:0;
   z-index:2;
@@ -341,6 +341,14 @@ tbody tr:nth-child(even) td:first-child{background:#f5f1e2}
   padding:12px 16px;
   border-radius:12px;
   margin-bottom:16px;
+}
+
+.finished-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:center;
+  margin-bottom:20px;
 }
 
 .reenganche-badge{
