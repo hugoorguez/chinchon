@@ -1,17 +1,12 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-/* 🔑 PON TUS KEYS AQUÍ */
+/* 🔑 CREDENCIALES DE SUPABASE */
 const SUPABASE_URL = "https://fepwhedxmrimnhabrhbo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlcHdoZWR4bXJpbW5oYWJyaGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3OTk1MDUsImV4cCI6MjEwMjM3NTUwNX0.6j4_rsp5r_YN79wWlAKwMfVIwbuC5Sd9wf1KaavJtak";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ---------- Estado ---------- */
-/*
- players: [{ id, name, startingScore }]
- rounds:  [ { [playerId]: number } ]   // una entrada por ronda jugada
- urlMode: 'edit' | 'view'  -> SIEMPRE decidido por la URL local, nunca se pisa con lo que llegue de la base de datos
-*/
 let state = {
   roomCode: null,
   players: [],
@@ -100,7 +95,7 @@ const rulesMaxInput = document.getElementById("rulesMaxInput");
 const rulesUseReenganches = document.getElementById("rulesUseReenganches");
 const rulesSave = document.getElementById("rulesSave");
 
-/* Copia de trabajo para el modal de editar jugadores (no se guarda hasta pulsar "Guardar") */
+/* Copia de trabajo para el modal de editar jugadores */
 let editDraftPlayers = [];
 
 /* ---------- Util ---------- */
@@ -120,16 +115,6 @@ function isEditable() {
   return state.urlMode !== "view";
 }
 
-/*
- Recorre las rondas y calcula, ronda a ronda:
- - el total de cada jugador
- - si algún jugador supera el máximo esa ronda:
-     - con reenganches: suma un reenganche y su puntuación baja hasta igualar
-       la más alta entre los jugadores que NO han superado el máximo esa ronda
-     - sin reenganches: el jugador queda eliminado (se congela su puntuación)
- - si TODOS los jugadores en juego superan el máximo en la misma ronda, la
-   partida se da por finalizada en ese punto (ya no hay a quién "engancharse")
-*/
 function computeStats() {
   const totals = {};
   const reenganchesCount = {};
@@ -140,7 +125,7 @@ function computeStats() {
     eliminated[p.id] = false;
   });
 
-  const roundMeta = []; // roundMeta[r] = { playerId: {before, value, raw, final, reenganched} }
+  const roundMeta = [];
   let gameFinished = false;
   let finishedAtRound = null;
 
@@ -153,7 +138,7 @@ function computeStats() {
     const considered = [];
     activePlayers.forEach((p) => {
       const val = round[p.id];
-      if (val === undefined || val === null) return; // no jugó esa ronda (se unió después)
+      if (val === undefined || val === null) return;
       rawTotals[p.id] = totals[p.id] + val;
       considered.push(p);
     });
@@ -168,9 +153,6 @@ function computeStats() {
     const meta = {};
 
     if (crossing.length > 0 && nonCrossing.length <= 1) {
-      // Gana la partida quien no llega al máximo cuando TODOS los demás sí llegan a la vez
-      // (esto vale igual con o sin reenganches: los reenganches previos no importan aquí).
-      // Si nonCrossing.length === 0, nadie sobrevive: se desempata por menor puntuación.
       considered.forEach((p) => {
         meta[p.id] = { before: totals[p.id], value: round[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
         totals[p.id] = rawTotals[p.id];
@@ -182,7 +164,6 @@ function computeStats() {
     }
 
     if (crossing.length === 0) {
-      // Nadie llega al máximo esta ronda: ronda normal
       considered.forEach((p) => {
         meta[p.id] = { before: totals[p.id], value: round[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
         totals[p.id] = rawTotals[p.id];
@@ -191,7 +172,6 @@ function computeStats() {
       continue;
     }
 
-    // Dos o más jugadores siguen por debajo del máximo: la partida continúa
     const nonCrossingMax = Math.max(...nonCrossing.map((p) => rawTotals[p.id]));
 
     considered.forEach((p) => {
@@ -291,14 +271,19 @@ startBtn.onclick = async () => {
     theme: state.theme
   };
 
-  await supabase.from("rooms").upsert(payload);
+  const { error } = await supabase.from("rooms").upsert(payload);
+  if (error) {
+    console.error("Error al crear la partida:", error);
+    alert("Error al conectar con la base de datos. Revisa la consola y las políticas RLS.");
+    return;
+  }
 
   const url = new URL(location.href);
   url.searchParams.set("room", code);
   url.searchParams.set("mode", "edit");
   history.replaceState(null, "", url);
 
-  subscribeRoom(code);
+  await subscribeRoom(code);
   showGame();
 };
 
@@ -340,7 +325,6 @@ function renderGame() {
     finishedActions.classList.add("hidden");
   }
 
-  // ---- Cabecera ----
   scoreTableHeadRow1.innerHTML = "";
   scoreTableHeadRow2.innerHTML = "";
 
@@ -374,10 +358,10 @@ function renderGame() {
     }
   }
 
-  // ---- Filas ----
   scoreTableBody.innerHTML = "";
   state.players.forEach((p) => {
     const s = stats.byPlayer[p.id];
+    if (!s) return;
     const tr = document.createElement("tr");
 
     const tdName = document.createElement("td");
@@ -428,15 +412,25 @@ function renderGame() {
 let subscription = null;
 
 async function subscribeRoom(code) {
-  const { data } = await supabase.from("rooms").select("*").eq("id", code).single();
+  const { data, error } = await supabase.from("rooms").select("*").eq("id", code).maybeSingle();
+
+  if (error) {
+    console.error("Error al obtener la sala:", error);
+    alert("Error al cargar la sala desde la base de datos.");
+    return;
+  }
+
   if (data) {
     applyRemoteData(data);
+  } else {
+    alert("No se encontró la partida indicada.");
+    return;
   }
 
   if (subscription) subscription.unsubscribe();
 
   subscription = supabase
-    .channel("public:rooms")
+    .channel(`room_${code}`)
     .on("postgres_changes", {
       event: "*",
       schema: "public",
@@ -455,18 +449,22 @@ function applyRemoteData(data) {
   state.useReenganches = data.use_reenganches;
   state.theme = data.theme || "felt";
   applyTheme(state.theme);
-  // OJO: el modo (edit/view) NUNCA se toma de la base de datos, solo de la URL local.
   renderGame();
 }
 
 async function saveRoom() {
-  await supabase.from("rooms").update({
+  const { error } = await supabase.from("rooms").update({
     players: state.players,
     rounds: state.rounds,
     max_points: state.maxPoints,
     use_reenganches: state.useReenganches,
     theme: state.theme
   }).eq("id", state.roomCode);
+
+  if (error) {
+    console.error("Error al actualizar sala:", error);
+    alert("No se pudo guardar la información.");
+  }
 }
 
 /* ---------- Apuntar ronda ---------- */
@@ -477,7 +475,7 @@ openApuntar.onclick = () => {
 
   apuntarList.innerHTML = "";
   state.players.forEach((p) => {
-    if (stats.byPlayer[p.id].eliminated) return; // los eliminados no juegan más rondas
+    if (stats.byPlayer[p.id]?.eliminated) return;
     const row = document.createElement("div");
     row.className = "apuntar-row";
     row.innerHTML = `
@@ -490,11 +488,10 @@ openApuntar.onclick = () => {
   apuntarModal.classList.remove("hidden");
 };
 
-/* -10: aplica al primer input vacío (no al primero de todos), y salta el foco al siguiente */
 minus10Key.onclick = () => {
   const inputs = Array.from(apuntarList.querySelectorAll("input"));
   const target = inputs.find((inp) => inp.value.trim() === "");
-  if (!target) return; // ya están todas rellenas
+  if (!target) return;
   target.value = -10;
   const nextIdx = inputs.indexOf(target) + 1;
   if (inputs[nextIdx]) inputs[nextIdx].focus();
@@ -565,7 +562,7 @@ editPlayersBtn.onclick = () => {
   const stats = computeStats();
   let maxTotal = 0;
   state.players.forEach((p) => {
-    const t = stats.byPlayer[p.id].eliminated ? 0 : stats.byPlayer[p.id].total;
+    const t = stats.byPlayer[p.id]?.eliminated ? 0 : stats.byPlayer[p.id]?.total || 0;
     if (t > maxTotal) maxTotal = t;
   });
   editPlayerScore.value = maxTotal;
@@ -672,7 +669,7 @@ progressBtn.onclick = () => {
       const pointRadius = [3];
       const pointStyle = ["circle"];
       const pointColor = [color];
-      const roundInfo = [null]; // info extra por punto, para el tooltip
+      const roundInfo = [null];
 
       for (let r = 1; r <= numRounds; r++) {
         const meta = stats.roundMeta[r - 1] ? stats.roundMeta[r - 1][p.id] : undefined;
@@ -801,7 +798,7 @@ newGameBtn.onclick = () => goToWelcome(null);
 newGameSamePlayersBtn.onclick = () => goToWelcome(state.players);
 
 /* ---------- Cargar desde URL ---------- */
-function loadFromUrl() {
+async function loadFromUrl() {
   const params = new URLSearchParams(location.search);
   const room = params.get("room");
   const mode = params.get("mode");
@@ -815,7 +812,8 @@ function loadFromUrl() {
   state.roomCode = room.toLowerCase();
   state.urlMode = mode === "view" ? "view" : "edit";
 
-  subscribeRoom(state.roomCode);
+  // Espera a que Supabase descargue los datos antes de montar la vista
+  await subscribeRoom(state.roomCode);
   showGame();
 }
 
