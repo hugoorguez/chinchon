@@ -18,8 +18,22 @@ let state = {
   rounds: [],
   maxPoints: 101,
   useReenganches: true,
-  urlMode: "edit"
+  urlMode: "edit",
+  theme: "felt"
 };
+
+const THEMES = [
+  { id: "felt", name: "Fieltro clásico" },
+  { id: "ocean", name: "Azul océano" },
+  { id: "wine", name: "Vino tinto" },
+  { id: "noir", name: "Casino noir" }
+];
+
+function applyTheme(themeId) {
+  document.documentElement.dataset.theme = themeId;
+  const t = THEMES.find((x) => x.id === themeId) || THEMES[0];
+  if (themeName) themeName.textContent = t.name;
+}
 
 let progressChart = null;
 
@@ -33,6 +47,8 @@ const codeInput = document.getElementById("codeInput");
 const startBtn = document.getElementById("startBtn");
 const maxInput = document.getElementById("maxInput");
 const useReenganches = document.getElementById("useReenganches");
+const themeBtn = document.getElementById("themeBtn");
+const themeName = document.getElementById("themeName");
 
 const roomCodeTitle = document.getElementById("roomCodeTitle");
 const scoreTableHeadRow1 = document.getElementById("scoreTableHeadRow1");
@@ -151,8 +167,10 @@ function computeStats() {
     const nonCrossing = considered.filter((p) => rawTotals[p.id] < state.maxPoints);
     const meta = {};
 
-    if (state.useReenganches && crossing.length > 0 && crossing.length === considered.length) {
-      // todos los que jugaban esta ronda llegan al máximo a la vez y no hay a quién "engancharse" -> fin de la partida
+    if (crossing.length > 0 && nonCrossing.length <= 1) {
+      // Gana la partida quien no llega al máximo cuando TODOS los demás sí llegan a la vez
+      // (esto vale igual con o sin reenganches: los reenganches previos no importan aquí).
+      // Si nonCrossing.length === 0, nadie sobrevive: se desempata por menor puntuación.
       considered.forEach((p) => {
         meta[p.id] = { before: totals[p.id], value: round[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
         totals[p.id] = rawTotals[p.id];
@@ -163,9 +181,18 @@ function computeStats() {
       break;
     }
 
-    const nonCrossingMax = nonCrossing.length
-      ? Math.max(...nonCrossing.map((p) => rawTotals[p.id]))
-      : 0;
+    if (crossing.length === 0) {
+      // Nadie llega al máximo esta ronda: ronda normal
+      considered.forEach((p) => {
+        meta[p.id] = { before: totals[p.id], value: round[p.id], raw: rawTotals[p.id], final: rawTotals[p.id], reenganched: false };
+        totals[p.id] = rawTotals[p.id];
+      });
+      roundMeta.push(meta);
+      continue;
+    }
+
+    // Dos o más jugadores siguen por debajo del máximo: la partida continúa
+    const nonCrossingMax = Math.max(...nonCrossing.map((p) => rawTotals[p.id]));
 
     considered.forEach((p) => {
       const raw = rawTotals[p.id];
@@ -186,16 +213,6 @@ function computeStats() {
     });
 
     roundMeta.push(meta);
-
-    // Sin reenganches: si tras esta ronda solo queda un jugador en pie, la partida termina (gana el que queda)
-    if (!state.useReenganches) {
-      const remaining = state.players.filter((p) => !eliminated[p.id]);
-      if (remaining.length <= 1 && state.players.length > 1) {
-        gameFinished = true;
-        finishedAtRound = r;
-        break;
-      }
-    }
   }
 
   const numRounds = gameFinished ? finishedAtRound + 1 : state.rounds.length;
@@ -211,6 +228,13 @@ function computeStats() {
 
   return { byPlayer, roundMeta, gameFinished, numRounds };
 }
+
+themeBtn.onclick = () => {
+  const idx = THEMES.findIndex((t) => t.id === state.theme);
+  const next = THEMES[(idx + 1) % THEMES.length];
+  state.theme = next.id;
+  applyTheme(state.theme);
+};
 
 /* ---------- Añadir jugador (pantalla inicial) ---------- */
 addPlayerBtn.onclick = () => {
@@ -263,7 +287,8 @@ startBtn.onclick = async () => {
     players: state.players,
     rounds: state.rounds,
     max_points: state.maxPoints,
-    use_reenganches: state.useReenganches
+    use_reenganches: state.useReenganches,
+    theme: state.theme
   };
 
   await supabase.from("rooms").upsert(payload);
@@ -428,6 +453,8 @@ function applyRemoteData(data) {
   state.rounds = data.rounds || [];
   state.maxPoints = data.max_points;
   state.useReenganches = data.use_reenganches;
+  state.theme = data.theme || "felt";
+  applyTheme(state.theme);
   // OJO: el modo (edit/view) NUNCA se toma de la base de datos, solo de la URL local.
   renderGame();
 }
@@ -437,7 +464,8 @@ async function saveRoom() {
     players: state.players,
     rounds: state.rounds,
     max_points: state.maxPoints,
-    use_reenganches: state.useReenganches
+    use_reenganches: state.useReenganches,
+    theme: state.theme
   }).eq("id", state.roomCode);
 }
 
